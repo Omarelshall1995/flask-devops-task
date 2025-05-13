@@ -155,7 +155,7 @@ terraform files are inside the terraform/ folder.
 
 ```bash
 terraform init
-terraform import aws_instance.devops_vm i-0ebc8fcccb155df62
+terraform import aws_instance.devops_vm i-0ebc8fcccb155df62, because i had done 1 change outside of the terrafoorm state so i had to import it again making sure it matches
 terraform plan
 terraform apply
 ```
