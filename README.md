@@ -4,27 +4,7 @@ this repo shows how to deploy a flask app using docker, nginx, jenkins, and terr
 
 ---
 
-## project structure
 
-```
-flask-devops-task/
-├── app.py
-├── Dockerfile
-├── Jenkinsfile
-├── terraform/
-│   ├── main.tf
-│   ├── variables.tf
-│   ├── terraform.tfvars
-│   ├── outputs.tf
-│   └── .gitignore
-├── nginx/
-│   └── nginx.conf
-├── screenshots/
-│   ├── pipeline1.png
-│   └── pipeline2.png
-```
-
----
 
 ## setup steps
 
@@ -150,48 +130,6 @@ these are used in the nginx config above.
 
 ---
 
-## jenkinsfile (ci/cd pipeline)
-
-```groovy
-pipeline {
-    agent any
-
-    environment {
-        DOCKER_CREDENTIALS = credentials('docker-hub')
-    }
-
-    stages {
-        stage('clone repo') {
-            steps {
-                git url: 'https://github.com/Omarelshall1995/flask-devops-task.git', branch: 'main'
-            }
-        }
-
-        stage('build docker image') {
-            steps {
-                sh 'docker build -t oshall95/flask-devops-task:latest .'
-            }
-        }
-
-        stage('push to dockerhub') {
-            steps {
-                sh '''
-                echo "$DOCKER_CREDENTIALS_PSW" | docker login -u "$DOCKER_CREDENTIALS_USR" --password-stdin
-                docker push oshall95/flask-devops-task:latest
-                '''
-            }
-        }
-
-        stage('run container') {
-            steps {
-                sh 'docker rm -f flask-container || true'
-                sh 'docker run -d --name flask-container -p 5000:5000 oshall95/flask-devops-task:latest'
-            }
-        }
-    }
-}
-```
-
 ### jenkins ci/cd pipeline screenshots
 
 below are two screenshots showing the jenkins pipeline that builds, pushes, and deploys the flask app:
@@ -245,7 +183,5 @@ the ec2 instance was managed through terraform using import to bring in the exis
 
 ---
 
-## note
 
-this project was done for a devops task and everything was built step by step. no automation tools were used for initial jenkins or nginx setup.
 
