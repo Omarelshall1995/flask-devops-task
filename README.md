@@ -87,46 +87,57 @@ cmd ["python", "app.py"]
 
 ## nginx config
 
-nginx is used as a reverse proxy with self-signed ssl.
+nginx is used as a reverse proxy with LETS ENCRYPT < THIS HAS BEEN UPDATED
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name 18.117.154.192;
+```
+## UPDATED
+    listen [::]:443 ssl ipv6only=on; # managed by Certbot
+    listen 443 ssl; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/18.117.154.192.nip.io/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/18.117.154.192.nip.io/privkey.pem; # managed by Certbot
+    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 
-    ssl_certificate /etc/ssl/certs/flask-selfsigned.crt;
-    ssl_certificate_key /etc/ssl/private/flask-selfsigned.key;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
 }
-
 server {
-    listen 80;
-    server_name 18.117.154.192;
-    return 301 https://$host$request_uri;
-}
+    if ($host = 18.117.154.192.nip.io) {
+        return 301 https://$host$request_uri;
+    } # managed by Certbot
+
+
+        listen 80 ;
+        listen [::]:80 ;
+    server_name 18.117.154.192.nip.io;
+    return 404; # managed by Certbot
 ```
 
 ---
 
-## ssl setup
-
-self-signed ssl cert created using:
-
-```bash
-sudo openssl req -x509 -nodes -days 365 \
-  -newkey rsa:2048 \
-  -keyout /etc/ssl/private/flask-selfsigned.key \
-  -out /etc/ssl/certs/flask-selfsigned.crt
+## lets encrypt steps < this steps
 ```
+sudo mkdir -p /var/www/certbot
+THEN , CONFIGURE THE BLOCK FOR FLASK in sites-available
+server {
+    listen 80;
+    server_name 18.117.154.192.nip.io;
 
-these are used in the nginx config above.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+sudo ln -s /etc/nginx/sites-available/flask-ssl /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+ ^ Reload the Nginx
+run the certbot
+sudo certbot certonly --webroot -w /var/www/certbot -d 18.117.154.192.nip.io
+
 
 ---
 
