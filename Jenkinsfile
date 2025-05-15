@@ -30,7 +30,7 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh 'docker rm -f flask-container || true'
-                sh 'docker run -d --name flask-container -p 5000:5000 oshall95/flask-devops-task:latest'
+                sh 'docker run -d --name flask-container oshall95/flask-devops-task:latest'
             }
         }
     }
