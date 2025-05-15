@@ -1,14 +1,12 @@
-# flask devops task
+# Flask DevOps Task
 
-this repo shows how to deploy a flask app using docker, nginx, jenkins, and terraform. everything was done on an ec2 instance with manual setup and a basic self-signed ssl.
+This repo shows how to deploy a Flask app using Docker, NGINX, Jenkins, and Terraform. Everything was done on an EC2 instance with manual setup and Let's Encrypt SSL.
 
 ---
 
+## Setup Steps
 
-
-## setup steps
-
-### 1. install docker
+### 1. Install Docker
 
 ```bash
 sudo apt update
@@ -18,7 +16,7 @@ sudo systemctl enable docker
 sudo usermod -aG docker $USER
 ```
 
-### 2. install nginx
+### 2. Install NGINX
 
 ```bash
 sudo apt install -y nginx
@@ -26,7 +24,7 @@ sudo systemctl start nginx
 sudo systemctl enable nginx
 ```
 
-### 3. install jenkins
+### 3. Install Jenkins
 
 ```bash
 curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee \
@@ -42,13 +40,13 @@ sudo systemctl start jenkins
 sudo systemctl enable jenkins
 ```
 
-#### get jenkins password
+#### Get Jenkins Password
 
 ```bash
 sudo cat /var/lib/jenkins/secrets/initialAdminPassword
 ```
 
-### 4. let jenkins use docker
+### 4. Let Jenkins Use Docker
 
 ```bash
 sudo usermod -aG docker jenkins
@@ -56,9 +54,9 @@ sudo usermod -aG docker jenkins
 
 ---
 
-## flask app
+## Flask App
 
-simple flask app that returns a basic message.
+Simple Flask app that returns a basic message.
 
 ```python
 from flask import Flask
@@ -72,51 +70,24 @@ if __name__ == "__main__":
 
 ---
 
-## dockerfile
+## Dockerfile
 
 ```dockerfile
-from python:3.9-slim
-workdir /app
-copy app.py .
-run pip install flask
-expose 5000
-cmd ["python", "app.py"]
+FROM python:3.9-slim
+WORKDIR /app
+COPY app.py .
+RUN pip install flask
+EXPOSE 5000
+CMD ["python", "app.py"]
 ```
 
 ---
 
-## nginx config
+## NGINX Config
 
-nginx is used as a reverse proxy with LETS ENCRYPT < THIS HAS BEEN UPDATED
+NGINX is used as a reverse proxy. Let's Encrypt was used to secure SSL.
 
 ```
-## UPDATED
-    listen [::]:443 ssl ipv6only=on; # managed by Certbot
-    listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/18.117.154.192.nip.io/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/18.117.154.192.nip.io/privkey.pem; # managed by Certbot
-    include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
-
-}
-server {
-    if ($host = 18.117.154.192.nip.io) {
-        return 301 https://$host$request_uri;
-    } # managed by Certbot
-
-
-        listen 80 ;
-        listen [::]:80 ;
-    server_name 18.117.154.192.nip.io;
-    return 404; # managed by Certbot
-```
-
----
-
-## lets encrypt steps < this steps
-```
-sudo mkdir -p /var/www/certbot
-THEN , CONFIGURE THE BLOCK FOR FLASK in sites-available
 server {
     listen 80;
     server_name 18.117.154.192.nip.io;
@@ -131,74 +102,136 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
     }
 }
+
+# HTTPS block after certbot
+server {
+    listen 443 ssl;
+    server_name 18.117.154.192.nip.io;
+
+    ssl_certificate /etc/letsencrypt/live/18.117.154.192.nip.io/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/18.117.154.192.nip.io/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {
+        proxy_pass http://localhost:5000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+---
+
+## Let's Encrypt Steps
+
+```bash
+sudo mkdir -p /var/www/certbot
+# Add flask server block with /.well-known location
 sudo ln -s /etc/nginx/sites-available/flask-ssl /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl reload nginx
- ^ Reload the Nginx
-run the certbot
 sudo certbot certonly --webroot -w /var/www/certbot -d 18.117.154.192.nip.io
+```
 
-
----
-
-### jenkins ci/cd pipeline screenshots
-
-below are two screenshots showing the jenkins pipeline that builds, pushes, and deploys the flask app:
-
-* pipeline stage view (build, push, deploy):
-  ![pipeline step 1](screenshots/pipeline1.png)
-
-* console output of a successful build:
-  ![pipeline step 2](screenshots/pipeline2.png)
+Same steps were repeated for Jenkins on port 8080 with a separate config.
 
 ---
 
-## terraform setup
+## Jenkins CI/CD Pipeline
 
-terraform files are inside the terraform/ folder.
+Pipeline builds image, pushes to DockerHub, and redeploys the container.
+
+### Jenkinsfile
+
+```groovy
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_CREDENTIALS = credentials('docker-hub')
+    }
+
+    stages {
+        stage('Clone Repo') {
+            steps {
+                git url: 'https://github.com/Omarelshall1995/flask-devops-task.git', branch: 'main'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t oshall95/flask-devops-task:latest .'
+            }
+        }
+
+        stage('Push to Docker Hub') {
+            steps {
+                sh '''
+                echo "$DOCKER_CREDENTIALS_PSW" | docker login -u "$DOCKER_CREDENTIALS_USR" --password-stdin
+                docker push oshall95/flask-devops-task:latest
+                '''
+            }
+        }
+
+        stage('Run Container') {
+            steps {
+                sh 'docker rm -f flask-container || true'
+                sh 'docker run -d --name flask-container -p 5000:5000 oshall95/flask-devops-task:latest'
+            }
+        }
+    }
+}
+```
+
+---
+
+## Screenshots
+
+![pipeline1](screenshots/pipeline1.png)
+![pipeline2](screenshots/pipeline2.png)
+
+---
+
+## Terraform Setup
+
+Terraform folder includes:
 
 * main.tf
 * variables.tf
 * terraform.tfvars
 * outputs.tf
 
-### steps used
-
 ```bash
 terraform init
-terraform import aws_instance.devops_vm i-0ebc8fcccb155df62, because i had done 1 change outside of the terrafoorm state so i had to import it again making sure it matches
+terraform import aws_instance.devops_vm i-0ebc8fcccb155df62
 terraform plan
 terraform apply
 ```
 
 ---
 
-## webhook setup (github or dockerhub)
+## Webhook Setup
 
-jenkins webhook url:
+Jenkins webhook URL:
 
 ```
-http://18.117.154.192:8080/github-webhook/
+https://jenkins.18.117.154.192.nip.io/github-webhook/
 ```
 
-* in jenkins job settings: check "github hook trigger"
-* in github repo settings: add a webhook pointing to the url above
-
-this allows automatic builds when you push.
+Enable webhook in GitHub repo settings and Jenkins job config.
 
 ---
-## Jenkins and flask IPs are below, BOTH ARE USING LETS ENCRYPT No longer self signed
+
+## Final URLs (Let's Encrypt SSL)
+
 ```
 https://18.117.154.192.nip.io/
 https://jenkins.18.117.154.192.nip.io/
 ```
----
-
-## automation summary
-
-the ec2 instance was managed through terraform using import to bring in the existing vm. the flask app was containerized with docker and the whole pipeline including build, push, and deployment was handled through jenkins. ssl certificates and nginx reverse proxy were set up manually on the server. jenkins and docker were also installed manually. webhooks were used to trigger builds from github automatically.
 
 ---
 
+## Summary
 
-
+The EC2 instance was provisioned and imported into Terraform. Docker, Jenkins, and NGINX were installed manually. A simple Flask app was containerized and deployed. Jenkins handled build and deployment automatically via webhook triggers. Let's Encrypt was used for SSL certificates instead of self-signed.
