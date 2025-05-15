@@ -177,8 +177,10 @@ this allows automatic builds when you push.
 
 ---
 ## Jenkins and flask IPs are below, BOTH ARE USING LETS ENCRYPT No longer self signed
+```
 https://18.117.154.192.nip.io/
 https://jenkins.18.117.154.192.nip.io/
+```
 ---
 
 ## automation summary
